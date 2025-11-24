@@ -53,10 +53,10 @@ class SE3Control(object):
         self.g = 9.81 # m/s^2
 
         # Gains  
-        self.kp_pos = np.array([6.5,6.5,15])
-        self.kd_pos = np.array([4.0, 4.0, 9])
-        self.kp_att = 544
-        self.kd_att = 46.64
+        self.kp_pos = np.array([5.5,5.5,12])#np.array([6.5,6.5,15])
+        self.kd_pos = np.array([2.5, 2.5, 7])#np.array([4.0, 4.0, 9])
+        self.kp_att = 30.44#544
+        self.kd_att = 2.464#46.64
         self.kp_vel = 0.1*self.kp_pos   # P gain for velocity controller (only used when the control abstraction is cmd_vel)
 
         # Linear map from individual rotor forces to scalar thrust and vector
@@ -150,7 +150,7 @@ class SE3Control(object):
         u2 = self.inertia @ (-self.kp_att*att_err - self.kd_att*w_err) + np.cross(state['w'], self.inertia@state['w'])  # Includes compensation for wxJw component
 
         # Compute command body rates by doing PD on the attitude error. 
-        cmd_w = -self.kp_att*att_err - self.kd_att*w_err
+        cmd_w = 1*(-self.kp_att*att_err - self.kd_att*w_err)
 
         # Compute motor speeds. Avoid taking square root of negative numbers.
         TM = np.array([u1, u2[0], u2[1], u2[2]])
@@ -175,7 +175,7 @@ class SE3Control(object):
                          'cmd_acc': cmd_acc}
         
         return control_input
-
+    
 
 class BatchedSE3Control(object):
     def __init__(self, batch_params, num_drones, device, kp_pos=None, kd_pos=None, kp_att=None, kd_att=None):

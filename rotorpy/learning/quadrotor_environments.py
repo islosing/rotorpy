@@ -20,7 +20,7 @@ from gymnasium import spaces
 
 from copy import deepcopy
 
-DEFAULT_RESET_OPTIONS = {'initial_states': 'random', 'pos_bound': 2, 'vel_bound': 0,
+DEFAULT_RESET_OPTIONS = {'initial_states': 'random', 'pos_bound': 3, 'vel_bound': 0,
                          "params": "fixed", 
                          "randomization_ranges": crazyflie_randomizations}
 
@@ -77,10 +77,10 @@ class QuadrotorEnv(VecEnv):
                  reward_fn = vec_hover_reward,          # Reward function, must output the same dim as the number of drones. 
                  quad_params = crazyflie_params,        # Vehicle params for the quadrotor environment. Can be BatchedMultirotorParams. 
                  device = torch.device('cpu'),          # Device to load environment onto. 
-                 max_time = 10,                         # Maximum time to run the simulation for in a single session.
+                 max_time = 100,                         # Maximum time to run the simulation for in a single session.
                  wind_profile = None,                   # wind profile object, if none is supplied it will choose no wind.
                  world        = None,                   # The world object
-                 sim_rate = 100,                        # The update frequency of the simulator in Hz
+                 sim_rate = 1000,                        # The update frequency of the simulator in Hz
                  aero = True,                           # Whether or not aerodynamic wrenches are computed.
                  render_mode = "None",                  # The rendering mode
                  render_fps = 30,                       # The rendering frames per second. Lower this for faster visualization.
@@ -156,9 +156,9 @@ class QuadrotorEnv(VecEnv):
         self.max_yaw_moment = self.quad_params.k_m.cpu().numpy() * self.rotor_speed_max**2
 
         # Set the maximum body rate on each axis (this is hand selected), rad/s
-        self.max_roll_br = 7.0
-        self.max_pitch_br = 7.0 
-        self.max_yaw_br = 3.0
+        self.max_roll_br = 10#7.0
+        self.max_pitch_br = 10#7.0
+        self.max_yaw_br = 10#3.0
 
         self.max_vel = 4/np.sqrt(4)   # Selected so that at most the max speed is 4 m/s
         self.rotor_speed_order_mag = np.floor(np.log10(self.rotor_speed_max))
@@ -169,7 +169,7 @@ class QuadrotorEnv(VecEnv):
 
         if world is None:
             # If no world is specified, assume that it means that the intended world is free space.
-            wbound = 4
+            wbound = 6
             self.world = World.empty((-wbound, wbound, -wbound,
                                       wbound, -wbound, wbound))
         else:
@@ -197,7 +197,7 @@ class QuadrotorEnv(VecEnv):
             self.quad_objs = [Quadrotor(self.ax, wind=True, color=np.random.choice(colors), wind_scale_factor=5) for _ in range(min(self.num_quads_to_render, self.num_envs))]
             self.world_artists = None
             self.title_artist = self.ax.set_title('t = {}'.format(self.t))
-
+            
         self.default_rotor_speed = torch.sqrt(self.quad_params.mass*self.quad_params.g/(self.quad_params.num_rotors*self.quad_params.k_eta))
         self.reset_options = dict(reset_options)
 
@@ -224,7 +224,14 @@ class QuadrotorEnv(VecEnv):
             self.vehicle_states['wind'][env_idx] = torch.zeros(3, device=self.device).double()
             self.vehicle_states['rotor_speeds'][env_idx] = torch.ones(4, device=self.device).double() * self.default_rotor_speed[env_idx]
         elif options['initial_states'] == 'deterministic':
-            self.vehicle_states = self.initial_states
+        # Override position with the specific value provided
+            self.vehicle_states['x'][env_idx] = torch.tensor([0.0000, -1.50000, 1.0000], device=self.device).double()
+            # Keep other states as they are in the initial_states
+            self.vehicle_states['v'][env_idx] = self.initial_states['v'][env_idx].double().to(self.device)
+            self.vehicle_states['q'][env_idx] = self.initial_states['q'][env_idx].double().to(self.device)
+            self.vehicle_states['w'][env_idx] = self.initial_states['w'][env_idx].double().to(self.device)
+            self.vehicle_states['wind'][env_idx] = self.initial_states['wind'][env_idx].double().to(self.device)
+            self.vehicle_states['rotor_speeds'][env_idx] = self.initial_states['rotor_speeds'][env_idx].double().to(self.device)
         elif isinstance(options['initial_states'], dict):
             # Ensure the correct keys are in dict.
             assert all(key in options['initial_states'] for key in ('x', 'v', 'q', 'w', 'wind', 'rotor_speeds'))
@@ -285,7 +292,7 @@ class QuadrotorEnv(VecEnv):
         options = self.reset_options
         # If any options are not specified, set them to default values.
         if 'pos_bound' not in options:
-            options['pos_bound'] = 2
+            options['pos_bound'] = 3
         if 'vel_bound' not in options:
             options['vel_bound'] = 0
         if 'initial_states' not in options:
@@ -556,4 +563,4 @@ def make_default_vec_env(num_envs, quad_params, control_mode, device, **kwargs):
           'w': torch.zeros(num_drones, 3, device=device).double(),
           'wind': torch.zeros(num_drones, 3, device=device).double(),
           'rotor_speeds': torch.tensor([init_rotor_speed, init_rotor_speed, init_rotor_speed, init_rotor_speed], device=device).repeat(num_drones, 1).double()}
-    return QuadrotorEnv(num_envs, initial_states=x0, quad_params=quad_params, max_time=5, control_mode=control_mode, device=device, **kwargs)
+    return QuadrotorEnv(num_envs, initial_states=x0, quad_params=quad_params, max_time=20, control_mode=control_mode, device=device, **kwargs)
